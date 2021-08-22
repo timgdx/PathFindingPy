@@ -17,6 +17,8 @@ class Cell:
 
     # blocks or unblocks the cell depending on its current state
     def block(self):
+        if self.state == 1 or self.state == 2:
+            return
         if self.state == 3:
             self.state = 0
         else:
@@ -32,11 +34,16 @@ class Cell:
     def clean(self):
         if self.state == 4 or self.state == 5:
             self.state = self.rawState
+            self.rawState = -1
+            self.update()
 
     def clear(self):
         if self.state == 1 or self.state == 2:
             return
-        self.state = 0
+        if (self.state == 4 or self.state == 5) and (self.rawState == 1 or self.rawState == 2):
+            self.state = self.rawState
+        else:
+            self.state = 0
         self.update()
 
     # updates the button graphic for the cell's state
@@ -89,12 +96,12 @@ class Grid:
         return self.state[x][y] if self.state.get(x) and self.state[x].get(y) else None
 
     def clean(self):
-        for v in self.grid.values():
+        for v in self.state.values():
             for vv in v.values():
                 vv.clean()
 
     def clear(self):
-        for v in self.grid.values():
+        for v in self.state.values():
             for vv in v.values():
                 vv.clear() 
 

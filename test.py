@@ -1,45 +1,34 @@
-import tkinter as tk
-from tkinter import ttk
+# Import Module
+from tkinter import *
+import time
+from threading import *
 
+# Create Object
+root = Tk()
 
-class App(tk.Tk):
-    def __init__(self):
-        super().__init__()
+# Set geometry
+root.geometry("400x400")
 
-        # root window
-        self.title('Theme Demo')
-        self.geometry('400x300')
-        self.style = ttk.Style(self)
+# use threading
 
-        # label
-        label = ttk.Label(self, text='Name:')
-        label.grid(column=0, row=0, padx=10, pady=10,  sticky='w')
-        # entry
-        textbox = ttk.Entry(self)
-        textbox.grid(column=1, row=0, padx=10, pady=10,  sticky='w')
-        # button
-        btn = ttk.Button(self, text='Show')
-        btn.grid(column=2, row=0, padx=10, pady=10,  sticky='w')
+def threading():
+	# Call work function
+	t1=Thread(target=work,daemon=True)
+	t1.start()
 
-        # radio button
-        self.selected_theme = tk.StringVar()
-        theme_frame = ttk.LabelFrame(self, text='Themes')
-        theme_frame.grid(padx=10, pady=10, ipadx=20, ipady=20, sticky='w')
+# work function
+def work():
 
-        for theme_name in self.style.theme_names():
-            rb = ttk.Radiobutton(
-                theme_frame,
-                text=theme_name,
-                value=theme_name,
-                variable=self.selected_theme,
-                command=self.change_theme)
-            rb.pack(expand=True, fill='both')
+	print("sleep time start")
 
-    def change_theme(self):
-        self.style.theme_use(self.selected_theme.get())
+	for i in range(10):
+		print(i)
+		time.sleep(1)
 
+	print("sleep time stop")
 
-if __name__ == "__main__":
-    app = App()
-    app.mainloop()
-    
+# Create Button
+Button(root,text="Click Me",command = threading).pack()
+
+# Execute Tkinter
+root.mainloop()

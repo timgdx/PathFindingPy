@@ -3,12 +3,21 @@ from algorithms import DepthFirstSearch
 from tkinter import *
 import tkinter.ttk as ttk
 from cell import *
+import threading
 
 # RUN - INIT ALGORITHM -> ALG.RUN()
 # STEP - INIT ALGORITHM IF NOT RUNNING/STEPPING -> ALG.RUN(ONCE)
 
 CELL_SIZE = 30
 GRID_SIZE = (8,8)
+
+STATE_IDLE = 0
+STATE_RUNNING = 1
+STATE_PAUSED = 2
+STATE_STEP = 3
+STATE_FINISHED = 4
+
+threadEvent = threading.Event()
 
 class App():
     def __init__(self):
@@ -24,7 +33,6 @@ class App():
 
         # transparent image for cell sizing
         self.dummyImage = PhotoImage(width=1,height=1)
-
         # custom ttk style
         self.createStyle()
 
@@ -43,7 +51,7 @@ class App():
         ttk.Radiobutton(self.algFrame,text="A*",variable=self.algorithm, value=4,takefocus=False,style="NStyle.TRadiobutton", command=self.onAlgorithmChanged).pack(fill=X,pady=[0,0])
 
         # execution state
-        self.state = 0 # 0 - idle, 1 - running, 2 - paused, 3 - step, 4 - finished
+        self.state = STATE_IDLE # 0 - idle, 1 - running, 2 - paused, 3 - step, 4 - finished
         self.startEndFlip = False # used to determine whether placing a Start or End node (flips on click)
         self.speed = DoubleVar()
 
@@ -57,13 +65,15 @@ class App():
         self.speedFrame.pack(anchor=NW,padx=5)
         self.speedScale = Scale(self.speedFrame,variable=self.speed,orient=HORIZONTAL,resolution=0.5,from_=0.5,to=2,tickinterval=0.5)
         self.speedScale.pack(fill=X,padx=0)
-        self.speedScale.set(1)
+        self.speedScale.set(2)
         self.clearButton = ttk.Button(self.leftFrame,text="Clear",style="StopButton.TButton",width=20)
         self.clearButton.pack(anchor=NW,padx=[8,10],pady=[5,5])
 
         # set handlers
         self.runPauseButton.configure(command=self.onRunPauseClicked)
+        self.stepButton.configure(command=self.onStepClicked)
         self.stopButton.configure(command=self.onStopClicked)
+        self.clearButton.configure(command=self.onClearClicked)
 
         # grid frame
         self.gridFrame = Frame(self.rightFrame,padx=1,pady=1,background="#666666")
@@ -78,9 +88,11 @@ class App():
         # create the grid
         self.grid = Grid(self.gridFrame,self.dummyImage,self.onCellClick,cellSize=CELL_SIZE,size=GRID_SIZE)
 
-
     def isPaused(self):
-        return self.state == 2
+        return self.state == STATE_PAUSED
+
+    def isStopped(self):
+        return self.state == STATE_IDLE
 
     # ttk style
     def createStyle(self):
@@ -122,39 +134,47 @@ class App():
 
     # event handlers
     def onRunPauseClicked(self):
-        if self.state == 0 or self.state == 4:
-            if self.state == 4:
+        if self.state == STATE_IDLE or self.state == STATE_FINISHED:
+            if self.state == STATE_FINISHED:
                 self.grid.clean()
             # create the algorithm instance and run it
             self.initSearchAlgorithm()
-            self.state = 1
+            self.state = STATE_RUNNING
             self.runPauseButton.configure(text="Pause")
             self.setRadioButtonsState(DISABLED)
             self.stateLabel.configure(text="State: Running")
-            self.algorithmTask = asyncio.run(self.algorithmInstance.runAsync(self.grid.start,self.grid.end))
-        elif self.state == 1:
-            self.state = 2
+            self.algorithmInstance.run(self.grid.start,self.grid.end)
+        elif self.state == STATE_RUNNING:
+            self.state = STATE_PAUSED
             self.runPauseButton.configure(text="Resume")
             self.stateLabel.configure(text="State: Paused")
-        elif self.state == 2:
-            self.state = 1
+        elif self.state == STATE_PAUSED:
+            self.state = STATE_RUNNING
             self.runPauseButton.configure(text="Pause")
             self.stateLabel.configure(text="State: Running")
-        elif self.state == 3:
-            self.state = 1
+        elif self.state == STATE_STEP:
+            self.state = STATE_RUNNING
             self.runPauseButton.configure(text="Pause")
             self.stateLabel.configure(text="State: Running")
         self.window.focus() # remove focus from the button
 
+    def onStepClicked(self):
+        pass
+
     def onStopClicked(self):
-        self.algorithmTask.cancel()
-        self.state = 0
+        #self.algorithmTask.cancel()
+        self.state = STATE_IDLE
         self.runPauseButton.configure(text="Run")
         self.setRadioButtonsState("enabled")
         self.stateLabel.configure(text="State: Idle")
         self.iterationsLabel.configure(text="Iterations: 0")
         self.grid.clean()
         self.algorithmInstance = None
+
+    def onClearClicked(self):
+        if self.state != STATE_IDLE and self.state != STATE_FINISHED:
+            return
+        self.grid.clear()
 
     # click handler
     def onCellClick(self,cell,left=False):
@@ -177,12 +197,18 @@ class App():
     def onSearchFinished(self,iter,finished):
         print("I: ", iter)
         print("Success: " + "yes" if finished else "no")
-        self.state = 4
+        self.state = STATE_FINISHED
         self.runPauseButton.configure(text="Run")
         self.stateLabel.configure(text="State: Finished")
         self.iterationsLabel.configure(text="Iterations: " + str(iter))
         self.algorithmInstance = None
         self.setRadioButtonsState("enabled")
+"""
+def asyncioEventLoop():
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_forever()
+threading.Thread(target=asyncioEventLoop).start()"""
 
 # create app
 app = App()

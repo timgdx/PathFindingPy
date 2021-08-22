@@ -1,4 +1,6 @@
 import asyncio
+import time
+import threading
 
 class PathFindingAlgorithm:
     def __init__(self,app,grid,speed):
@@ -6,7 +8,17 @@ class PathFindingAlgorithm:
         self.app = app
         self.grid = grid
         self.setSpeed(speed)
-    async def runAsync(self,origin,destination,once=False):
+    def run (self,origin,destination,once=False):
+        #asyncio.run(self.runAsync(origin,destination,once=False))
+        if once:
+            self.runAsync(origin,destination,once=False)
+        else:
+            self.thread = threading.Thread(target=self.runAsync,args=(origin,destination,once),daemon=True)
+            #print(self.thread)
+            self.thread.start()
+    def runAsync(self,origin,destination,once):
+        return
+    def stop(self):
         pass
     def setSpeed(self,speed):
         # convert speed to seconds
@@ -44,11 +56,11 @@ class PathFindingAlgorithm:
                 neighbours.append(node)
         return neighbours
 
-
 class DepthFirstSearch(PathFindingAlgorithm):
     def __init__(self,app,grid,speed) -> None:
         super().__init__(app,grid,speed)
-    async def runAsync(self,origin,destination,once=False):
+
+    def runAsync(self,origin,destination,once):
         # first run initialization
         if not self.init:
             self.init = True
@@ -60,12 +72,14 @@ class DepthFirstSearch(PathFindingAlgorithm):
         while self.nodes and not self.finished:
             self.__step()
             if not once:
-                if self.app.isPaused():
+                if self.app.isPaused() or self.app.isStopped():
                     return
-                await asyncio.sleep(self.speed)
+                time.sleep(self.speed)
+                #await asyncio.sleep(self.speed)
             else:
                 return
         self.app.onSearchFinished(self.iterations,self.finished)
+        return
 
     def __step(self):
         self.iterations += 1
@@ -75,5 +89,4 @@ class DepthFirstSearch(PathFindingAlgorithm):
             self.finished = True
             return
         self.nodes += self.getNeighbours(node)
-        print("step")
 
