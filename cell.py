@@ -7,6 +7,8 @@ class Cell:
         self.button = Label(parent,text=x*10+y,image=dummyImage,width=cellSize,height=cellSize,compound=CENTER,background="#cccccc",relief=FLAT)
         self.button.grid(row=x,column=y,padx=1,pady=1)
         self.state = state
+        self.x = x
+        self.y = y
         if state != 0:
             self.update()
         #btn.configure(command=onCellClick(gridState[x][y]))
@@ -21,7 +23,19 @@ class Cell:
             self.state = 3
         self.update()
 
+    def visited(self):
+        self.rawState = self.state
+        self.state = 4
+        self.update()
+
+    # cleans search data
+    def clean(self):
+        if self.state == 4 or self.state == 5:
+            self.state = self.rawState
+
     def clear(self):
+        if self.state == 1 or self.state == 2:
+            return
         self.state = 0
         self.update()
 
@@ -35,7 +49,9 @@ class Cell:
             self.button.configure(relief=RAISED,background="#cf6a87")
         elif (self.state == 3): # blocked
             self.button.configure(relief=FLAT,background="#666666")
-        elif (self.state == 4): # path
+        elif (self.state == 4): # visited
+            self.button.configure(relief=FLAT,background="#f3a683")
+        elif (self.state == 5): # path
             self.button.configure(relief=FLAT,background="#f19066")
 
 class Grid:
@@ -68,6 +84,19 @@ class Grid:
             self.state[y-1][x-1].state = 2
             self.state[y-1][x-1].update()
             self.end = self.state[y-1][x-1]
+
+    def get(self,x,y):
+        return self.state[x][y] if self.state.get(x) and self.state[x].get(y) else None
+
+    def clean(self):
+        for v in self.grid.values():
+            for vv in v.values():
+                vv.clean()
+
+    def clear(self):
+        for v in self.grid.values():
+            for vv in v.values():
+                vv.clear() 
 
     def replaceStart(self,cell):
         if cell is self.start:
