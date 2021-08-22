@@ -39,10 +39,12 @@ class Cell:
             self.button.configure(relief=FLAT,background="#f19066")
 
 class Grid:
-    def __init__(self,parent,dummyImage,onCellClick,grid=None,cellSize=30,x=0,y=0):
+    def __init__(self,parent,dummyImage,onCellClick,grid=None,cellSize=30,size=(8,8)):
         if grid is None:
-            self.dimensions = (x,y)
-            self.state = {k:dict() for k in range(y)} # [row][col]: (button,state) - states: 0 - none; 1 - start; 2 - end; 3 - blocked
+            self.dimensions = size
+            self.state = {k:dict() for k in range(self.dimensions[1])} # [row][col]: (button,state) - states: 0 - none; 1 - start; 2 - end; 3 - blocked
+        x = self.dimensions[0]
+        y = self.dimensions[1]
         for row in range(y): # rows
             for col in range(x): # columns
                 #btn = ttk.Button(gridFrame,text=x*10+y,image=gridCellImage,style="GStyle.TButton",compound=CENTER)
@@ -55,7 +57,7 @@ class Grid:
                     self.state[row][col] = Cell(parent,row,col,dummyImage,2,cellSize)
                     self.end = self.state[row][col]
                 else:
-                    self.state[row][col] = Cell(parent,row,col,dummyImage,cellSize=30)
+                    self.state[row][col] = Cell(parent,row,col,dummyImage,cellSize=cellSize)
                 #btn.configure(command=onCellClick(gridState[x][y]))
                 self.state[row][col].button.bind("<Button-1>",lambda f,cell=self.state[row][col]: onCellClick(cell,True))
                 self.state[row][col].button.bind("<Button-3>",lambda f,cell=self.state[row][col]: onCellClick(cell))
