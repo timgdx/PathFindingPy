@@ -191,13 +191,16 @@ class App():
             threadQueue.put((MSG_STEP,))
 
     def onStopClicked(self):
+        if self.algorithmThread:
+            # send message
+            threadQueue.put(None)
+        self.algorithmThread = None
         self.state = STATE_IDLE
         self.runPauseButton.configure(text="Run")
         self.setRadioButtonsState("enabled")
         self.stateLabel.configure(text="State: Idle")
         self.iterationsLabel.configure(text="Iterations: 0")
         self.grid.clean()
-        self.algorithmThread = None
 
     def onSpeedChanged(self,val):
         if self.algorithmThread:
