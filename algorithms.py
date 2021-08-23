@@ -235,6 +235,12 @@ class DepthFirstSearch(PathFindingAlgorithm):
         node.visited()
         if node == self.destination:
             return True
-        self.nodes += super().getNeighbours(node)
+        # get neigbhours
+        neighbours = super().getNeighbours(node)
+        # remove older duplicates
+        self.nodes = [n for n in self.nodes if n not in neighbours]
+        # merge queue
+        self.nodes += neighbours
+        #self.nodes += super().getNeighbours(node)
         self.app.onStepFinished(self.iterations)
         return False

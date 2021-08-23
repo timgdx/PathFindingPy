@@ -177,6 +177,8 @@ class App():
 
     def onStepClicked(self):
         if self.state != STATE_STEP:
+            if self.state == STATE_FINISHED:
+                self.grid.clean()
             self.state = STATE_STEP
             self.runPauseButton.configure(text="Run")
             self.setRadioButtonsState(DISABLED)
