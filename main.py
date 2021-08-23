@@ -1,12 +1,9 @@
-import asyncio
-from algorithms import DepthFirstSearch
+from algorithms import *
 from tkinter import *
 import tkinter.ttk as ttk
 from cell import *
-import threading
-
-# RUN - INIT ALGORITHM -> ALG.RUN()
-# STEP - INIT ALGORITHM IF NOT RUNNING/STEPPING -> ALG.RUN(ONCE)
+from queue import Queue
+from messages import *
 
 CELL_SIZE = 30
 GRID_SIZE = (8,8)
@@ -17,7 +14,7 @@ STATE_PAUSED = 2
 STATE_STEP = 3
 STATE_FINISHED = 4
 
-threadEvent = threading.Event()
+threadQueue = Queue()
 
 class App():
     def __init__(self):
@@ -39,8 +36,8 @@ class App():
         # algorithm selection
         self.algorithm = IntVar()
         self.algorithmFunc = None
-        self.algorithmInstance = None
-        self.algorithmTask = None
+        self.algorithmThread = None
+
         self.algFrame = LabelFrame(self.leftFrame,text="Algorithms",padx=10,pady=10,width=200)
         self.algFrame.pack(anchor=NW,padx=5)
         dfs = ttk.Radiobutton(self.algFrame,text="DepthFirstSearch",variable=self.algorithm, value=1,takefocus=False,style="NStyle.TRadiobutton", command=self.onAlgorithmChanged)
@@ -74,6 +71,7 @@ class App():
         self.stepButton.configure(command=self.onStepClicked)
         self.stopButton.configure(command=self.onStopClicked)
         self.clearButton.configure(command=self.onClearClicked)
+        self.speedScale.configure(command=self.onSpeedChanged)
 
         # grid frame
         self.gridFrame = Frame(self.rightFrame,padx=1,pady=1,background="#666666")
@@ -122,61 +120,12 @@ class App():
 
     # event handlers
     def onAlgorithmChanged(self):
-        print("Alg: ", self.algorithm.get())
         val = self.algorithm.get()
         if val == 1:
             self.algorithmFunc = DepthFirstSearch
         #self.window.focus() # remove focus from the button; takefocus=False does just that
 
-    def initSearchAlgorithm(self):
-        if not self.algorithmInstance:
-            self.algorithmInstance = self.algorithmFunc(self,self.grid,self.speed.get())
-
-    # event handlers
-    def onRunPauseClicked(self):
-        if self.state == STATE_IDLE or self.state == STATE_FINISHED:
-            if self.state == STATE_FINISHED:
-                self.grid.clean()
-            # create the algorithm instance and run it
-            self.initSearchAlgorithm()
-            self.state = STATE_RUNNING
-            self.runPauseButton.configure(text="Pause")
-            self.setRadioButtonsState(DISABLED)
-            self.stateLabel.configure(text="State: Running")
-            self.algorithmInstance.run(self.grid.start,self.grid.end)
-        elif self.state == STATE_RUNNING:
-            self.state = STATE_PAUSED
-            self.runPauseButton.configure(text="Resume")
-            self.stateLabel.configure(text="State: Paused")
-        elif self.state == STATE_PAUSED:
-            self.state = STATE_RUNNING
-            self.runPauseButton.configure(text="Pause")
-            self.stateLabel.configure(text="State: Running")
-        elif self.state == STATE_STEP:
-            self.state = STATE_RUNNING
-            self.runPauseButton.configure(text="Pause")
-            self.stateLabel.configure(text="State: Running")
-        self.window.focus() # remove focus from the button
-
-    def onStepClicked(self):
-        pass
-
-    def onStopClicked(self):
-        #self.algorithmTask.cancel()
-        self.state = STATE_IDLE
-        self.runPauseButton.configure(text="Run")
-        self.setRadioButtonsState("enabled")
-        self.stateLabel.configure(text="State: Idle")
-        self.iterationsLabel.configure(text="Iterations: 0")
-        self.grid.clean()
-        self.algorithmInstance = None
-
-    def onClearClicked(self):
-        if self.state != STATE_IDLE and self.state != STATE_FINISHED:
-            return
-        self.grid.clear()
-
-    # click handler
+    # on grid click
     def onCellClick(self,cell,left=False):
         if self.state != 0:
             return
@@ -191,24 +140,86 @@ class App():
         # check start/end integrity
         self.grid.integrityCheck()
 
+    # creates a thread for the chosen algorithm
+    def initSearchAlgorithm(self,step=False):
+        # threadQueue.get() -> to clear queue?
+        if not self.algorithmThread: # create thread
+            self.algorithmThread = self.algorithmFunc(threadQueue,self,self.grid,self.speed.get(),step)
+
+    # event handlers
+    def onRunPauseClicked(self):
+        if self.state == STATE_IDLE or self.state == STATE_FINISHED:
+            if self.state == STATE_FINISHED:
+                self.grid.clean()
+            # create the algorithm thread
+            self.initSearchAlgorithm()
+            # change state
+            self.state = STATE_RUNNING
+            # update UI
+            self.runPauseButton.configure(text="Pause")
+            self.setRadioButtonsState(DISABLED)
+            self.stateLabel.configure(text="State: Running")
+            # run algorithm thread
+            self.algorithmThread.start()
+        elif self.state == STATE_RUNNING:
+            self.state = STATE_PAUSED
+            self.runPauseButton.configure(text="Resume")
+            self.stateLabel.configure(text="State: Paused")
+            # send message
+            threadQueue.put((MSG_PAUSE,))
+        elif self.state == STATE_PAUSED or self.state == STATE_STEP:
+            self.state = STATE_RUNNING
+            self.runPauseButton.configure(text="Pause")
+            self.stateLabel.configure(text="State: Running")
+            # send message
+            threadQueue.put((MSG_PAUSE,))
+        self.window.focus() # remove focus from the button
+
+    def onStepClicked(self):
+        if self.state != STATE_STEP:
+            self.state = STATE_STEP
+            self.runPauseButton.configure(text="Run")
+            self.setRadioButtonsState(DISABLED)
+            self.stateLabel.configure(text="State: Step")
+        if not self.algorithmThread:
+            # create the algorithm thread
+            self.initSearchAlgorithm(True)
+            # run
+            self.algorithmThread.start()
+        else: # assume thread is running
+            # send message
+            threadQueue.put((MSG_STEP,))
+
+    def onStopClicked(self):
+        self.state = STATE_IDLE
+        self.runPauseButton.configure(text="Run")
+        self.setRadioButtonsState("enabled")
+        self.stateLabel.configure(text="State: Idle")
+        self.iterationsLabel.configure(text="Iterations: 0")
+        self.grid.clean()
+        self.algorithmThread = None
+
+    def onSpeedChanged(self,val):
+        if self.algorithmThread:
+            # send message
+            threadQueue.put((MSG_SPEED,val))
+
+    def onClearClicked(self):
+        if self.state != STATE_IDLE and self.state != STATE_FINISHED:
+            return
+        self.grid.clear()
+
     def onStepFinished(self,iter):
         self.iterationsLabel.configure(text="Iterations: " + str(iter))
 
-    def onSearchFinished(self,iter,finished):
-        print("I: ", iter)
+    def onSearchComplete(self,iter,finished):
         print("Success: " + "yes" if finished else "no")
         self.state = STATE_FINISHED
         self.runPauseButton.configure(text="Run")
         self.stateLabel.configure(text="State: Finished")
         self.iterationsLabel.configure(text="Iterations: " + str(iter))
-        self.algorithmInstance = None
+        self.algorithmThread = None
         self.setRadioButtonsState("enabled")
-"""
-def asyncioEventLoop():
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_forever()
-threading.Thread(target=asyncioEventLoop).start()"""
 
 # create app
 app = App()
