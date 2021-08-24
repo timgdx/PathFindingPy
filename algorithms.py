@@ -10,109 +10,9 @@ STATE_RUNNING = 0
 STATE_PAUSED = 1
 STATE_STEP = 2
 
-'''class PathFindingAlgorithm:
-    def __init__(self,queue,app,grid,speed):
-        self.init = False
-        self.queue = queue
-        self.app = app
-        self.grid = grid
-        self.setSpeed(speed)
-    def run (self,origin,destination,once=False):
-        if once:
-            self.runAsync(origin,destination,once=False)
-        else:
-            self.thread = threading.Thread(target=self.runAsync,args=(origin,destination,once),daemon=True)
-            self.thread.start()
-            #self.thread.join()
-    def runAsync(self,origin,destination,once):
-        return
-    # process queue message
-    def __processQueue(self) -> bool:
-        try:
-            message = self.queue.get(block=False)
-            print("Message: ", message)
-            if message is None: # stop
-                return False
-            elif message[0] == 1: # update speed
-                self.__setSpeed(message[1])
-            elif message[0] == 2: # paused
-                self.__setSpeed(message[1])
-            return True
-        except Empty:
-            return True
-    def setSpeed(self,speed):
-        # convert speed to seconds
-        if speed == 0.5:
-            self.speed = 1
-        elif speed == 1:
-            self.speed = 0.5
-        elif speed == 1.5:
-            self.speed = 0.25
-        else:
-            self.speed = 0.05
-    def getNeighbours(self,cell):
-        neighbours = list()
-        x = cell.x
-        y = cell.y
-        # north
-        node = self.grid.get(x,y-1)
-        if node:
-            if node.state == 0 or node.state == 2:
-                neighbours.append(node)
-        # east
-        node = self.grid.get(x+1,y)
-        if node:
-            if node.state == 0 or node.state == 2:
-                neighbours.append(node)
-        # south
-        node = self.grid.get(x,y+1)
-        if node:
-            if node.state == 0 or node.state == 2:
-                neighbours.append(node)
-        # west
-        node = self.grid.get(x-1,y)
-        if node:
-            if node.state == 0 or node.state == 2:
-                neighbours.append(node)
-        return neighbours
-
-class DepthFirstSearch(PathFindingAlgorithm):
-    def __init__(self,queue,app,grid,speed) -> None:
-        super().__init__(queue,app,grid,speed)
-
-    def runAsync(self,origin,destination,once):
-        # first run initialization
-        if not self.init:
-            self.init = True
-            self.finished = False
-            self.origin = origin
-            self.destination = destination
-            self.nodes = [origin] # nodes in queue to be visited
-            self.iterations = 0
-        while self.nodes and not self.finished:
-            # thread
-            if not once:
-                # process queue
-                if not self.__processQueue(): # exit signal
-                    return
-            # step
-            self.__step()
-            if not once:
-                time.sleep(self.speed)
-            else:
-                return
-        self.app.onSearchFinished(self.iterations,self.finished)
-        return
-
-    def __step(self):
-        self.iterations += 1
-        node = self.nodes.pop()
-        node.visited()
-        if node == self.destination:
-            self.finished = True
-            return
-        self.nodes += self.getNeighbours(node)
-'''
+# order in which getNeighbours(cell) returns 
+#NEIGHBOURS_ORDER = [(0,-1),(0,1),(-1,0),(1,0)] # NORTH, SOUTH, WEST, EAST
+NEIGHBOURS_ORDER = [(-1,0),(1,0),(0,-1),(0,1)] # WEST, EAST, NORTH, SOUTH
 
 # extend thread class
 class PathFindingAlgorithm(threading.Thread):
@@ -125,8 +25,11 @@ class PathFindingAlgorithm(threading.Thread):
         # search state
         self.origin = self.grid.start
         self.destination = self.grid.end
-        self.nodes = [self.origin] # nodes in queue to be visited
+        #self.nodes = [self.origin] # nodes in the stack to be visited
         self.iterations = 0
+        self.visited = 0
+        self.path = dict() # for path search
+        #self.origin.discovered()
         # execution state
         self.state = STATE_STEP if stepOnce else STATE_RUNNING
 
@@ -146,14 +49,12 @@ class PathFindingAlgorithm(threading.Thread):
                 if time.time() >= self.nextStep:
                     self.previousStep = time.time()
                     self.nextStep = self.previousStep+self.speed
-                    finished = self.step()
-                    if not self.nodes or finished:
-                        self.app.onSearchComplete(self.iterations,finished)
+                    if self.isEmpty() or self.step():
+                        self.app.onSearchComplete(self.iterations,self.visited,self.getPath())
                         break
             elif self.state == STATE_STEP: # STEPPING
-                finished = self.step()
-                if not self.nodes or finished:
-                    self.app.onSearchComplete(self.iterations,finished)
+                if self.isEmpty() or self.step():
+                    self.app.onSearchComplete(self.iterations,self.visited,self.getPath())
                     break
                 self.state = STATE_PAUSED
             # sleep
@@ -161,11 +62,27 @@ class PathFindingAlgorithm(threading.Thread):
         print("EXIT")
         return
 
+    def isEmpty(self) -> bool:
+        return False
+
+    def getPath(self) -> list:
+        path = list()
+        node = self.path.get(self.destination)
+        while(node):
+            path.append(node)
+            node.path()
+            node = self.path.get(node)
+        if path:
+            path.reverse()
+            path.append(self.destination)
+            self.destination.path()
+        return path
+
     # process queue message
     def __processQueue(self) -> bool:
         try:
             message = self.queue.get(block=False)
-            print("Message: ", message)
+            #print("Message: ", message)
             if message is None: # stop
                 return False
             elif message[0] == MSG_SPEED: # update speed
@@ -187,60 +104,122 @@ class PathFindingAlgorithm(threading.Thread):
     # returns True if finished
     def step(self) -> bool:
         self.iterations += 1
+        self.app.onStep(self.iterations,self.visited)
         #print("STEP - ", self.iterations)
 
     def __setSpeed(self,speed):
         # convert speed to seconds
         if speed == 0.5:
-            self.speed = 1
+            self.speed = 0.75
         elif speed == 1:
-            self.speed = 0.5
-        elif speed == 1.5:
             self.speed = 0.25
-        else:
+        elif speed == 1.5:
             self.speed = 0.05
+        else:
+            self.speed = 0.025
 
+    # returns a list of unblocked neighbours
     def getNeighbours(self,cell: Cell):
         neighbours = list()
-        x = cell.x
-        y = cell.y
-        # north
-        node = self.grid.get(x,y-1)
-        if node:
-            if node.state == 0 or node.state == 2:
-                neighbours.append(node)
-        # east
-        node = self.grid.get(x+1,y)
-        if node:
-            if node.state == 0 or node.state == 2:
-                neighbours.append(node)
-        # south
-        node = self.grid.get(x,y+1)
-        if node:
-            if node.state == 0 or node.state == 2:
-                neighbours.append(node)
-        # west
-        node = self.grid.get(x-1,y)
-        if node:
-            if node.state == 0 or node.state == 2:
-                neighbours.append(node)
+        x,y = cell.x, cell.y
+        for dir in NEIGHBOURS_ORDER:
+            node = self.grid.get(x+dir[0],y+dir[1])
+            if node:
+                if node.state != BLOCKED:
+                    neighbours.append(node)
         return neighbours
 
-class DepthFirstSearch(PathFindingAlgorithm):
+# STACK DFS
+class DepthFirstSearchStack(PathFindingAlgorithm):
+
+    def __init__(self, queue: Queue, app, grid: Grid, speed, stepOnce: bool):
+        super().__init__(queue, app, grid, speed, stepOnce)
+        self.stack = [self.origin]
+
+    def isEmpty(self) -> bool:
+        return not self.stack
 
     def step(self) -> bool:
-        #print(DepthFirstSearch.__mro__)
+        node = self.stack.pop()
+        if node.state != VISITED:
+            self.visited += 1
         super().step()
-        node = self.nodes.pop()
+        if node.state == VISITED:
+            return False
         node.visited()
         if node == self.destination:
             return True
         # get neigbhours
-        neighbours = super().getNeighbours(node)
-        # remove older duplicates
-        self.nodes = [n for n in self.nodes if n not in neighbours]
-        # merge queue
-        self.nodes += neighbours
-        #self.nodes += super().getNeighbours(node)
-        self.app.onStepFinished(self.iterations)
+        neighbours = self.getNeighbours(node)
+        selectedNeighbours = []
+        # add path
+        for n in neighbours:
+            if n.state != VISITED:
+                selectedNeighbours.append(n)
+                self.path[n] = node
+        # push to stack
+        self.stack += selectedNeighbours
+        return False
+
+# STACK DFS ALT - less efficient version
+class DepthFirstSearchStackAlt(PathFindingAlgorithm):
+
+    def __init__(self, queue: Queue, app, grid: Grid, speed, stepOnce: bool):
+        super().__init__(queue, app, grid, speed, stepOnce)
+        self.stack = [self.origin]
+
+    def isEmpty(self) -> bool:
+        return not self.stack
+
+    def step(self) -> bool:
+        #print(DepthFirstSearch.__mro__)
+        node = self.stack.pop()
+        if node.state != VISITED:
+            self.visited += 1
+        super().step()
+        if node.state == VISITED:
+            return False
+        node.visited()
+        if node == self.destination:
+            return True
+        # get neigbhours
+        neighbours = self.getNeighbours(node)
+        # ALT #1 - remove duplicates already in the stack from the neighbours
+        #neighbours = [n for n in neighbours if n not in self.nodes]
+        # ALT #2 - remove older duplicates from the stack
+        #self.nodes = [n for n in self.nodes if n not in neighbours]
+        # mark as discovered and add path
+        for n in neighbours:
+        #    n.discovered()
+            if n.state != VISITED:
+                self.path[n] = node
+        # push to stack
+        self.stack += neighbours
+        return False
+
+class BreadthFirstSearch(PathFindingAlgorithm):
+
+    def __init__(self, queue: Queue, app, grid: Grid, speed, stepOnce: bool):
+        super().__init__(queue, app, grid, speed, stepOnce)
+        self.searchQueue = Queue()
+        self.searchQueue.put(self.origin)
+
+    def isEmpty(self) -> bool:
+        return self.searchQueue.qsize() == 0
+
+    def step(self) -> bool:
+        self.visited += 1
+        super().step()
+        node = self.searchQueue.get()
+        node.visited()
+        if node == self.destination:
+            return True
+        # get neigbhours
+        neighbours = self.getNeighbours(node)
+        # add to queue and path
+        for n in neighbours:
+            if n.state != DISCOVERED and n.state != VISITED:
+                self.searchQueue.put(n)
+                n.discovered()
+                self.path[n] = node
         return False

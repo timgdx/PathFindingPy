@@ -6,7 +6,7 @@ from queue import Queue
 from messages import *
 
 CELL_SIZE = 30
-GRID_SIZE = (8,8)
+GRID_SIZE = (9,9)
 
 STATE_IDLE = 0
 STATE_RUNNING = 1
@@ -15,6 +15,8 @@ STATE_STEP = 3
 STATE_FINISHED = 4
 
 threadQueue = Queue()
+
+ALGORITHMS = [DepthFirstSearchStack,DepthFirstSearchStackAlt,BreadthFirstSearch]
 
 class App():
     def __init__(self):
@@ -35,36 +37,32 @@ class App():
 
         # algorithm selection
         self.algorithm = IntVar()
-        self.algorithmFunc = None
         self.algorithmThread = None
 
         self.algFrame = LabelFrame(self.leftFrame,text="Algorithms",padx=10,pady=10,width=200)
         self.algFrame.pack(anchor=NW,padx=5)
-        dfs = ttk.Radiobutton(self.algFrame,text="DepthFirstSearch",variable=self.algorithm, value=1,takefocus=False,style="NStyle.TRadiobutton", command=self.onAlgorithmChanged)
-        dfs.pack(fill=X,pady=[0,10])
-        dfs.invoke()
-        ttk.Radiobutton(self.algFrame,text="BreadthFirstSearch",variable=self.algorithm, value=2,takefocus=False,style="NStyle.TRadiobutton", command=self.onAlgorithmChanged).pack(fill=X,pady=[0,10])
-        ttk.Radiobutton(self.algFrame,text="Dijkstra",variable=self.algorithm, value=3,takefocus=False,style="NStyle.TRadiobutton", command=self.onAlgorithmChanged).pack(fill=X,pady=[0,10])
-        ttk.Radiobutton(self.algFrame,text="A*",variable=self.algorithm, value=4,takefocus=False,style="NStyle.TRadiobutton", command=self.onAlgorithmChanged).pack(fill=X,pady=[0,0])
+        for algN in range(len(ALGORITHMS)):
+            ttk.Radiobutton(self.algFrame,text=ALGORITHMS[algN].__name__,variable=self.algorithm, value=algN,takefocus=False,style="NStyle.TRadiobutton").pack(fill=X,pady=[0,5])
+        self.algFrame.winfo_children()[0].invoke()
 
         # execution state
         self.state = STATE_IDLE # 0 - idle, 1 - running, 2 - paused, 3 - step, 4 - finished
         self.startEndFlip = False # used to determine whether placing a Start or End node (flips on click)
         self.speed = DoubleVar()
 
-        self.runPauseButton = ttk.Button(self.leftFrame,text="Run",style="NStyle.TButton",width=20)
-        self.runPauseButton.pack(anchor=NW,padx=[8,10],pady=[10,0])
-        self.stepButton = ttk.Button(self.leftFrame,text="Step",style="NStyle.TButton",width=20)
-        self.stepButton.pack(anchor=NW,padx=[8,10],pady=[5,0])
-        self.stopButton = ttk.Button(self.leftFrame,text="Stop",style="StopButton.TButton",width=20)
-        self.stopButton.pack(anchor=NW,padx=[8,10],pady=[5,0])
+        self.runPauseButton = ttk.Button(self.leftFrame,text="Run",style="NStyle.TButton")
+        self.runPauseButton.pack(anchor=NW,padx=[8,10],pady=[10,0],fill=X)
+        self.stepButton = ttk.Button(self.leftFrame,text="Step",style="NStyle.TButton")
+        self.stepButton.pack(anchor=NW,padx=[8,10],pady=[5,0],fill=X)
+        self.stopButton = ttk.Button(self.leftFrame,text="Stop",style="StopButton.TButton")
+        self.stopButton.pack(anchor=NW,padx=[8,10],pady=[5,0],fill=X)
         self.speedFrame = LabelFrame(self.leftFrame,text="Speed",padx=22,pady=0)
-        self.speedFrame.pack(anchor=NW,padx=5)
+        self.speedFrame.pack(anchor=NW,padx=5,fill=X)
         self.speedScale = Scale(self.speedFrame,variable=self.speed,orient=HORIZONTAL,resolution=0.5,from_=0.5,to=2,tickinterval=0.5)
         self.speedScale.pack(fill=X,padx=0)
         self.speedScale.set(2)
-        self.clearButton = ttk.Button(self.leftFrame,text="Clear",style="StopButton.TButton",width=20)
-        self.clearButton.pack(anchor=NW,padx=[8,10],pady=[5,5])
+        self.clearButton = ttk.Button(self.leftFrame,text="Clear",style="StopButton.TButton")
+        self.clearButton.pack(anchor=NW,padx=[8,10],pady=[5,5],fill=X)
 
         # set handlers
         self.runPauseButton.configure(command=self.onRunPauseClicked)
@@ -78,10 +76,16 @@ class App():
         self.gridFrame.pack(anchor=NE,padx=5, pady=5)
 
         # stats display
-        self.stateLabel = Label(self.rightFrame,text="State: idle")
-        self.stateLabel.pack(anchor=NW,padx=5)
+        self.stateLabel = Label(self.rightFrame,text="State: Idle")
+        self.stateLabel.pack(anchor=NW,padx=2)
         self.iterationsLabel = Label(self.rightFrame,text="Iterations: ")
-        self.iterationsLabel.pack(anchor=NW,padx=5)
+        self.iterationsLabel.pack(anchor=NW,padx=2)
+        self.visitedLabel = Label(self.rightFrame,text="Visited: ") # expanded nodes
+        self.visitedLabel.pack(anchor=NW,padx=2)
+        self.distanceLabel = Label(self.rightFrame,text="Distance: ")
+        self.distanceLabel.pack(anchor=NW,padx=2)
+        self.pathLabel = Label(self.rightFrame,text="Path: ",justify=LEFT,wraplength=300)
+        self.pathLabel.pack(anchor=NW,padx=2)
 
         # create the grid
         self.grid = Grid(self.gridFrame,self.dummyImage,self.onCellClick,cellSize=CELL_SIZE,size=GRID_SIZE)
@@ -117,13 +121,7 @@ class App():
     def setRadioButtonsState(self,val):
         for rb in self.algFrame.winfo_children():
             rb.configure(state = val)
-
-    # event handlers
-    def onAlgorithmChanged(self):
-        val = self.algorithm.get()
-        if val == 1:
-            self.algorithmFunc = DepthFirstSearch
-        #self.window.focus() # remove focus from the button; takefocus=False does just that
+        self.clearButton.configure(state = val)
 
     # on grid click
     def onCellClick(self,cell,left=False):
@@ -144,7 +142,7 @@ class App():
     def initSearchAlgorithm(self,step=False):
         # threadQueue.get() -> to clear queue?
         if not self.algorithmThread: # create thread
-            self.algorithmThread = self.algorithmFunc(threadQueue,self,self.grid,self.speed.get(),step)
+            self.algorithmThread = ALGORITHMS[self.algorithm.get()](threadQueue,self,self.grid,self.speed.get(),step)
 
     # event handlers
     def onRunPauseClicked(self):
@@ -173,7 +171,7 @@ class App():
             self.stateLabel.configure(text="State: Running")
             # send message
             threadQueue.put((MSG_PAUSE,))
-        self.window.focus() # remove focus from the button
+        #self.window.focus() # remove focus from the button
 
     def onStepClicked(self):
         if self.state != STATE_STEP:
@@ -202,6 +200,9 @@ class App():
         self.setRadioButtonsState("enabled")
         self.stateLabel.configure(text="State: Idle")
         self.iterationsLabel.configure(text="Iterations: 0")
+        self.visitedLabel.configure(text="Visited: 0")
+        self.distanceLabel.configure(text="Distance: 0")
+        self.pathLabel.configure(text="Path: ")
         self.grid.clean()
 
     def onSpeedChanged(self,val):
@@ -214,15 +215,18 @@ class App():
             return
         self.grid.clear()
 
-    def onStepFinished(self,iter):
+    def onStep(self,iter,visited):
         self.iterationsLabel.configure(text="Iterations: " + str(iter))
+        self.visitedLabel.configure(text="Visited: " + str(visited))
 
-    def onSearchComplete(self,iter,finished):
-        print("Success: " + "yes" if finished else "no")
+    def onSearchComplete(self,iter,visited,path):
         self.state = STATE_FINISHED
         self.runPauseButton.configure(text="Run")
         self.stateLabel.configure(text="State: Finished")
         self.iterationsLabel.configure(text="Iterations: " + str(iter))
+        self.visitedLabel.configure(text="Visited: " + str(visited))
+        self.distanceLabel.configure(text="Distance: " + str(len(path)))
+        self.pathLabel.configure(text="Path: " + str(path))
         self.algorithmThread = None
         self.setRadioButtonsState("enabled")
 

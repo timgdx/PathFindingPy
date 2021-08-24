@@ -1,65 +1,91 @@
 from tkinter import *
 
+EMPTY = 0
+START = 1
+END = 2
+BLOCKED = 3
+DISCOVERED = 4
+VISITED = 5
+PATH = 6
+
 class Cell:
-    def __init__(self,parent,x,y,dummyImage,state = 0,cellSize = 50):
-        #btn = ttk.Button(gridFrame,text=x*10+y,image=gridCellImage,style="GStyle.TButton",compound=CENTER)
-        #self.button = Button(parent,text=x*10+y,image=dummyImage,width=50,height=50,compound=CENTER,background="#cccccc",relief=SUNKEN)
-        self.button = Label(parent,text=x*10+y,image=dummyImage,width=cellSize,height=cellSize,compound=CENTER,background="#cccccc",relief=FLAT)
-        self.button.grid(row=x,column=y,padx=1,pady=1)
+    def __init__(self,id,parent,x,y,dummyImage,state = EMPTY,cellSize = 50):
+        self.label = Label(parent,text=id,image=dummyImage,width=cellSize,height=cellSize,compound=CENTER,background="#cccccc",relief=FLAT)
+        self.label.grid(row=x,column=y,padx=1,pady=1)
         self.state = state
+        self.rawState = 0
         self.x = x
         self.y = y
-        if state != 0:
+        self.id = id
+        if state != EMPTY:
+            if state == START: self.label.configure(text="A")
+            elif state == END: self.label.configure(text="B")
             self.update()
-        #btn.configure(command=onCellClick(gridState[x][y]))
-        #self.button.bind("<Button-1>",lambda f: onCellClick(gridState[x][y],True))
-        #self.button.bind("<Button-3>",lambda f: onCellClick(gridState[x][y]))
+
+    def __str__(self) -> str:
+        return str(self.label.cget("text")) 
+
+    def __repr__(self) -> str:
+        return str(self.label.cget("text")) #str(self.id)
 
     # blocks or unblocks the cell depending on its current state
+    # doesn't do anything if START/END
     def block(self):
-        if self.state == 1 or self.state == 2:
+        if self.state == START or self.state == END:
             return
-        if self.state == 3:
-            self.state = 0
+        if self.state == BLOCKED:
+            self.state = EMPTY
         else:
-            self.state = 3
+            self.state = BLOCKED
+        self.update()
+
+    def discovered(self):
+        self.rawState = self.state
+        self.state = DISCOVERED
         self.update()
 
     def visited(self):
-        self.rawState = self.state
-        self.state = 4
+        if self.state != DISCOVERED: # prevent DISCOVERED from being save as its initial state
+            self.rawState = self.state
+        self.state = VISITED
         self.update()
 
-    # cleans search data
+    def path(self):
+        self.state = PATH
+        self.update()
+
+    # cleans algorithm search data
     def clean(self):
-        if self.state == 4 or self.state == 5:
+        if self.state == DISCOVERED or self.state == VISITED or self.state == PATH:
             self.state = self.rawState
-            self.rawState = -1
+            self.rawState = EMPTY # not necessary
             self.update()
 
     def clear(self):
-        if self.state == 1 or self.state == 2:
+        if self.state == START or self.state == END:
             return
-        if (self.state == 4 or self.state == 5) and (self.rawState == 1 or self.rawState == 2):
+        if (self.state == DISCOVERED or self.state == VISITED or self.state == PATH) and (self.rawState == START or self.rawState == END):
             self.state = self.rawState
         else:
-            self.state = 0
+            self.state = EMPTY
         self.update()
 
-    # updates the button graphic for the cell's state
+    # updates the label graphic for the cell's state
     def update(self):
-        if (self.state == 0): # none
-            self.button.configure(relief=FLAT,background="#cccccc")
-        elif (self.state == 1): # start
-            self.button.configure(relief=RAISED,background="#778beb")
-        elif (self.state == 2): # end
-            self.button.configure(relief=RAISED,background="#cf6a87")
-        elif (self.state == 3): # blocked
-            self.button.configure(relief=FLAT,background="#666666")
-        elif (self.state == 4): # visited
-            self.button.configure(relief=FLAT,background="#f3a683")
-        elif (self.state == 5): # path
-            self.button.configure(relief=FLAT,background="#f19066")
+        if (self.state == EMPTY): # none
+            self.label.configure(relief=FLAT,background="#cccccc")
+        elif (self.state == START): # start
+            self.label.configure(relief=RAISED,background="#778beb")
+        elif (self.state == END): # end
+            self.label.configure(relief=RAISED,background="#cf6a87")
+        elif (self.state == BLOCKED): # blocked
+            self.label.configure(relief=FLAT,background="#666666")
+        elif (self.state == DISCOVERED): # discovered
+            self.label.configure(relief=FLAT if (self.rawState != START and self.rawState != END) else RAISED,background="#f7d794")
+        elif (self.state == VISITED): # visited
+            self.label.configure(relief=FLAT if (self.rawState != START and self.rawState != END) else RAISED,background="#f3a683")
+        elif (self.state == PATH): # path
+            self.label.configure(relief=FLAT if (self.rawState != START and self.rawState != END) else RAISED,background="#e15f41")
 
 class Grid:
     def __init__(self,parent,dummyImage,onCellClick,grid=None,cellSize=30,size=(8,8)):
@@ -70,25 +96,24 @@ class Grid:
         y = self.dimensions[1]
         for row in range(y): # rows
             for col in range(x): # columns
-                #btn = ttk.Button(gridFrame,text=x*10+y,image=gridCellImage,style="GStyle.TButton",compound=CENTER)
-                #btn = Button(gridFrame,text=x*10+y,image=dummyImage,width=50,height=50,compound=CENTER,background="#cccccc",relief=SUNKEN)
-                #btn.grid(row=x,column=y)
+                id = row*x+col
                 if self.state[row].get(col) == 2:
-                    self.state[row][col] = Cell(parent,row,col,dummyImage,1,cellSize)
+                    self.state[row][col] = Cell(id,parent,row,col,dummyImage,START,cellSize)
                     self.start = self.state[row][col]
                 elif self.state[row].get(col) == 3:
-                    self.state[row][col] = Cell(parent,row,col,dummyImage,2,cellSize)
+                    self.state[row][col] = Cell(id,parent,row,col,dummyImage,END,cellSize)
                     self.end = self.state[row][col]
                 else:
-                    self.state[row][col] = Cell(parent,row,col,dummyImage,cellSize=cellSize)
-                #btn.configure(command=onCellClick(gridState[x][y]))
-                self.state[row][col].button.bind("<Button-1>",lambda f,cell=self.state[row][col]: onCellClick(cell,True))
-                self.state[row][col].button.bind("<Button-3>",lambda f,cell=self.state[row][col]: onCellClick(cell))
+                    self.state[row][col] = Cell(id,parent,row,col,dummyImage,cellSize=cellSize)
+                self.state[row][col].label.bind("<Button-1>",lambda f,cell=self.state[row][col]: onCellClick(cell,True))
+                self.state[row][col].label.bind("<Button-3>",lambda f,cell=self.state[row][col]: onCellClick(cell))
         if grid is None: # set start/end nodes
-            self.state[0][0].state = 1
+            self.state[0][0].state = START
+            self.state[0][0].label.configure(text="A")
             self.state[0][0].update()
             self.start = self.state[0][0]
-            self.state[y-1][x-1].state = 2
+            self.state[y-1][x-1].state = END
+            self.state[y-1][x-1].label.configure(text="B")
             self.state[y-1][x-1].update()
             self.end = self.state[y-1][x-1]
 
@@ -106,78 +131,53 @@ class Grid:
                 vv.clear() 
 
     def replaceStart(self,cell):
-        if cell is self.start:
-            self.start = self.end
-            self.end = cell
-            self.start.state = 1
-            self.end.state = 2
-            self.start.update()
-            self.end.update()
-        elif cell is self.end:
-            self.end = self.start
-            self.start = cell
-            self.start.state = 1
-            self.end.state = 2
-            self.start.update()
-            self.end.update()
+        if cell is self.end or cell is self.start:
+            self.reverseStart()
         else:
-            self.start.state = 0
+            self.start.state = EMPTY
+            self.start.label.configure(text=str(self.start.id))
             self.start.update()
             self.start = cell
-            cell.state = 1
+            self.start.label.configure(text="A")
+            cell.state = START
             self.start.update()
 
     def replaceEnd(self,cell):
-        if cell is self.end:
-            self.end = self.start
-            self.start = cell
-            self.start.state = 1
-            self.end.state = 2
-            self.start.update()
-            self.end.update()
-        elif cell is self.start:
-            self.start = self.end
-            self.end = cell
-            self.start.state = 1
-            self.end.state = 2
-            self.end.update()
-            self.start.update()
+        if cell is self.end or cell is self.start:
+            self.reverseStart()
         else:
-            self.end.state = 0
+            self.end.state = EMPTY
+            self.end.label.configure(text=str(self.end.id))
             self.end.update()
             self.end = cell
-            cell.state = 2
+            self.end.label.configure(text="B")
+            cell.state = END
             self.end.update()
+
+    def reverseStart(self):
+        end = self.end
+        self.end = self.start
+        self.start = end
+        self.start.state = START
+        self.end.state = END
+        self.start.update()
+        self.end.update()
+        self.start.label.configure(text="A")
+        self.end.label.configure(text="B")
 
     # grid start/end integrity check
     def integrityCheck(self):
-        """start = False
-        end = False
-        for vr in self.state.values():
-            for vc in vr.values():
-                if vc.state == 1:
-                    if start:
-                        vc.state = 0
-                        vc.update()
-                    else:
-                        start = True
-                elif vc.state == 2:
-                    if end:
-                        vc.state = 0
-                        vc.update()
-                    else:
-                        end = True"""
         if not self.start:
-            if self.state[0][0].state == 2:
-                self.state[self.dimensions[0]-1][self.dimensions[1]-1].state = 1
+            if self.state[0][0].state == END:
+                self.state[self.dimensions[0]-1][self.dimensions[1]-1].state = START
                 self.state[self.dimensions[0]-1][self.dimensions[1]-1].update()
             else:
-                self.state[0][0].state = 1
+                self.state[0][0].state = START
                 self.state[0][0].update()
         if not self.end:
-            if self.state[self.dimensions[0]-1][self.dimensions[1]-1].state == 1:
-                self.state[0][0].state = 2
+            if self.state[self.dimensions[0]-1][self.dimensions[1]-1].state == START:
+                self.state[0][0].state = END
                 self.state[0][0].update()
             else:
-                self.state[self.dimensions[0]-1][self.dimensions[1]-1].state = 2
+                self.state[self.dimensions[0]-1][self.dimensions[1]-1].state = END
                 self.state[self.dimensions[0]-1][self.dimensions[1]-1].update()
