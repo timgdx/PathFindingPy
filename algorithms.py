@@ -151,6 +151,7 @@ class DepthFirstSearchStack(PathFindingAlgorithm):
             return True
         # get neigbhours
         neighbours = self.getNeighbours(node)
+        neighbours.reverse() # for order consistency
         selectedNeighbours = []
         # add path
         for n in neighbours:
@@ -160,6 +161,32 @@ class DepthFirstSearchStack(PathFindingAlgorithm):
         # push to stack
         self.stack += selectedNeighbours
         return False
+
+    # check recursive result against a path
+    # for result integrity check
+    def __dfsCheck(self,path):
+        self.dfsDiscovered = set()
+        self.dfsPath = dict()
+        self.__dfcCheckRecursive(self.origin)
+        # get path
+        recPath = list()
+        node = self.dfsPath.get(self.destination)
+        while(node):
+            recPath.append(node)
+            node = self.dfsPath.get(node)
+        if recPath:
+            recPath.reverse()
+            recPath.append(self.destination)
+        print("PATH: ", recPath)
+        print("EQUAL: ", set(path) == set(recPath))
+        print("DISTANCE: ", str(len(recPath)), " = ", str(len(path)))
+
+    def __dfcCheckRecursive(self,node):
+        self.dfsDiscovered.add(node)
+        for n in self.getNeighbours(node):
+            if n not in self.dfsDiscovered:
+                self.dfsPath[n] = node
+                self.__dfcCheckRecursive(n)
 
 # STACK DFS ALT - less efficient version
 class DepthFirstSearchStackAlt(PathFindingAlgorithm):
@@ -184,13 +211,8 @@ class DepthFirstSearchStackAlt(PathFindingAlgorithm):
             return True
         # get neigbhours
         neighbours = self.getNeighbours(node)
-        # ALT #1 - remove duplicates already in the stack from the neighbours
-        #neighbours = [n for n in neighbours if n not in self.nodes]
-        # ALT #2 - remove older duplicates from the stack
-        #self.nodes = [n for n in self.nodes if n not in neighbours]
-        # mark as discovered and add path
+        # add path
         for n in neighbours:
-        #    n.discovered()
             if n.state != VISITED:
                 self.path[n] = node
         # push to stack
