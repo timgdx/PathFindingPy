@@ -1,8 +1,7 @@
-from posixpath import abspath
 from algorithms import *
 from tkinter import *
 import tkinter.ttk as ttk
-from cell import *
+from grid import *
 from queue import Queue
 from messages import *
 from os import listdir, mkdir, path

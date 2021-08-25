@@ -1,7 +1,7 @@
 from queue import Queue, Empty
 import time
 import threading
-from cell import *
+from grid import *
 from messages import *
 from math import isclose
 
