@@ -87,35 +87,37 @@ class Cell:
         elif (self.state == PATH): # path
             self.label.configure(relief=FLAT if (self.rawState != START and self.rawState != END) else RAISED,background="#e15f41")
 
+    def getSaveState(self):
+        if self.state == EMPTY or self.state == START or self.state == END or self.state == BLOCKED:
+            return self.state
+        elif self.rawState == EMPTY or self.rawState == START or self.rawState == END or self.rawState == BLOCKED:
+            return self.rawState
+        else:
+            return EMPTY
+
 class Grid:
     def __init__(self,parent,dummyImage,onCellClick,grid=None,cellSize=30,size=(8,8)):
+        x,y = size
+        self.dimensions = size
+        self.state = {k:dict() for k in range(y)}
         if grid is None:
-            self.dimensions = size
-            self.state = {k:dict() for k in range(self.dimensions[1])} # [row][col]: (button,state) - states: 0 - none; 1 - start; 2 - end; 3 - blocked
-        x = self.dimensions[0]
-        y = self.dimensions[1]
+            grid = {str(k):dict() for k in range(y)} # [row][col]: cell.state
+            grid['0']['0'] = START
+            grid[str(y-1)][str(x-1)] = END
         for row in range(y): # rows
             for col in range(x): # columns
                 id = row*x+col
-                if self.state[row].get(col) == 2:
+                state = grid[str(row)].get(str(col)) or EMPTY # row and col need to be converted to str because of the JSON parser
+                if state == START:
                     self.state[row][col] = Cell(id,parent,row,col,dummyImage,START,cellSize)
                     self.start = self.state[row][col]
-                elif self.state[row].get(col) == 3:
+                elif state == END:
                     self.state[row][col] = Cell(id,parent,row,col,dummyImage,END,cellSize)
                     self.end = self.state[row][col]
                 else:
-                    self.state[row][col] = Cell(id,parent,row,col,dummyImage,cellSize=cellSize)
+                    self.state[row][col] = Cell(id,parent,row,col,dummyImage,state,cellSize=cellSize)
                 self.state[row][col].label.bind("<Button-1>",lambda f,cell=self.state[row][col]: onCellClick(cell,True))
                 self.state[row][col].label.bind("<Button-3>",lambda f,cell=self.state[row][col]: onCellClick(cell))
-        if grid is None: # set start/end nodes
-            self.state[0][0].state = START
-            self.state[0][0].label.configure(text="A")
-            self.state[0][0].update()
-            self.start = self.state[0][0]
-            self.state[y-1][x-1].state = END
-            self.state[y-1][x-1].label.configure(text="B")
-            self.state[y-1][x-1].update()
-            self.end = self.state[y-1][x-1]
 
     def get(self,x,y):
         return self.state[x][y] if self.state.get(x) and self.state[x].get(y) else None
@@ -181,3 +183,10 @@ class Grid:
             else:
                 self.state[self.dimensions[0]-1][self.dimensions[1]-1].state = END
                 self.state[self.dimensions[0]-1][self.dimensions[1]-1].update()
+
+    def getSaveDict(self):
+        save = {k:dict() for k in range(self.dimensions[1])}
+        for row in save.keys():
+            for column in self.state[row].keys():
+                save[row][column] = self.state[row][column].getSaveState()
+        return save

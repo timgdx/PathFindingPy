@@ -3,6 +3,7 @@ import time
 import threading
 from cell import *
 from messages import *
+from math import isclose
 
 SLEEP_TIME = 1/60 # thread sleep time in seconds
 
@@ -50,6 +51,7 @@ class PathFindingAlgorithm(threading.Thread):
                     self.previousStep = time.time()
                     self.nextStep = self.previousStep+self.speed
                     if self.isEmpty() or self.step():
+                        #self.dfsCheck(self.getPath())
                         self.app.onSearchComplete(self.iterations,self.visited,self.getPath())
                         break
             elif self.state == STATE_STEP: # STEPPING
@@ -86,7 +88,7 @@ class PathFindingAlgorithm(threading.Thread):
             if message is None: # stop
                 return False
             elif message[0] == MSG_SPEED: # update speed
-                self.__setSpeed(message[1])
+                self.__setSpeed(float(message[1]))
                 self.nextStep = self.previousStep+self.speed
             elif message[0] == MSG_PAUSE: # pause/resume
                 if self.state == 1: # resume
@@ -109,11 +111,11 @@ class PathFindingAlgorithm(threading.Thread):
 
     def __setSpeed(self,speed):
         # convert speed to seconds
-        if speed == 0.5:
+        if isclose(speed,0.5):
             self.speed = 0.75
-        elif speed == 1:
+        elif isclose(speed,1):
             self.speed = 0.25
-        elif speed == 1.5:
+        elif isclose(speed,1.5):
             self.speed = 0.05
         else:
             self.speed = 0.025
@@ -164,7 +166,7 @@ class DepthFirstSearchStack(PathFindingAlgorithm):
 
     # check recursive result against a path
     # for result integrity check
-    def __dfsCheck(self,path):
+    def dfsCheck(self,path):
         self.dfsDiscovered = set()
         self.dfsPath = dict()
         self.__dfcCheckRecursive(self.origin)
