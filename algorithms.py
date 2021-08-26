@@ -17,6 +17,9 @@ NEIGHBOURS_ORDER = [(-1,0),(1,0),(0,-1),(0,1)] # WEST, EAST, NORTH, SOUTH
 
 # extend thread class
 class PathFindingAlgorithm(threading.Thread):
+
+    info = None # information about the algorithm (string)
+
     def __init__(self,queue: Queue, app, grid: Grid, speed, stepOnce: bool):
         threading.Thread.__init__(self,daemon=True)
         self.queue = queue
@@ -134,6 +137,10 @@ class PathFindingAlgorithm(threading.Thread):
 # STACK DFS
 class DepthFirstSearchStack(PathFindingAlgorithm):
 
+    info = '''This is a stack based implementation of DFS (rather than recursive) and, as such,
+    more steps have to be performed to respect node discovery order.
+    This results in 'ghost' steps, where the popped node has already been visited.'''
+
     def __init__(self, queue: Queue, app, grid: Grid, speed, stepOnce: bool):
         super().__init__(queue, app, grid, speed, stepOnce)
         self.stack = [self.origin]
@@ -190,7 +197,7 @@ class DepthFirstSearchStack(PathFindingAlgorithm):
                 self.dfsPath[n] = node
                 self.__dfcCheckRecursive(n)
 
-# STACK DFS ALT - less efficient version
+# STACK DFS ALT - less efficient version (more 'ghost' steps)
 class DepthFirstSearchStackAlt(PathFindingAlgorithm):
 
     def __init__(self, queue: Queue, app, grid: Grid, speed, stepOnce: bool):

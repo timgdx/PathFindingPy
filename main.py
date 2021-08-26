@@ -18,7 +18,7 @@ STATE_FINISHED = 4
 
 threadQueue = Queue() # message queue
 
-ALGORITHMS = [DepthFirstSearchStack,DepthFirstSearchStackAlt,BreadthFirstSearch]
+ALGORITHMS = [DepthFirstSearchStack,BreadthFirstSearch]
 SAVED_GRIDS_PATH = path.abspath(path.dirname(__file__)) + "/grids"
 
 class App():
@@ -26,12 +26,13 @@ class App():
         # create the window
         self.window = Tk()
         self.window.title("PathFindingPy")
+        self.window.resizable(False,False)
 
         # create positional frames
         self.leftFrame = Frame(self.window)
         self.leftFrame.pack(side=LEFT,fill=BOTH)
         self.rightFrame = Frame(self.window)
-        self.rightFrame.pack(side=RIGHT,fill=BOTH)
+        self.rightFrame.pack(side=RIGHT,fill=BOTH,padx=5,pady=[0,5])
 
         # transparent image for cell sizing
         self.dummyImage = PhotoImage(width=1,height=1)
@@ -52,14 +53,16 @@ class App():
         self.createControlsSection()
 
         # grid frame
-        self.gridFrame = Frame(self.rightFrame,padx=1,pady=1,background="#666666")
-        self.gridFrame.pack(anchor=NE,padx=5, pady=5)
+        self.createGridSection()
 
         # create the grid
         self.grid = Grid(self.gridFrame,self.dummyImage,self.onCellClick,cellSize=CELL_SIZE,size=GRID_SIZE)
 
         # stats display
         self.createStatsSection()
+
+        # select 1st algorithm
+        self.algFrame.winfo_children()[0].invoke()
 
     # ttk style
     def createStyle(self):
@@ -105,8 +108,8 @@ class App():
         self.algFrame.pack(anchor=NW,padx=5)
         self.algorithm = IntVar()
         for algN in range(len(ALGORITHMS)):
-            ttk.Radiobutton(self.algFrame,text=ALGORITHMS[algN].__name__,variable=self.algorithm, value=algN,takefocus=False,style="NStyle.TRadiobutton").pack(fill=X,pady=[0,5])
-        self.algFrame.winfo_children()[0].invoke()
+            ttk.Radiobutton(self.algFrame,text=ALGORITHMS[algN].__name__,variable=self.algorithm, value=algN,command=self.__onAlgorithmChanged,takefocus=False,style="NStyle.TRadiobutton").pack(fill=X,pady=[0,5])
+        #self.algFrame.winfo_children()[0].invoke()
 
     def createControlsSection(self):
         self.speed = DoubleVar()
@@ -130,6 +133,10 @@ class App():
         self.clearButton.configure(command=self.onClearClicked)
         self.speedScale.configure(command=self.onSpeedChanged)
 
+    def createGridSection(self):
+        self.gridFrame = Frame(self.rightFrame,padx=1,pady=1,background="#666666")
+        self.gridFrame.pack(anchor=N,padx=5, pady=5)
+
     def createStatsSection(self):
         self.stateLabel = Label(self.rightFrame,text="State: Idle")
         self.stateLabel.pack(anchor=NW,padx=2)
@@ -141,6 +148,10 @@ class App():
         self.distanceLabel.pack(anchor=NW,padx=2)
         self.pathLabel = Label(self.rightFrame,text="Path: ",justify=LEFT,wraplength=300)
         self.pathLabel.pack(anchor=NW,padx=2)
+        self.notesFrame = LabelFrame(self.rightFrame,text="Note")
+        #self.notesFrame.pack(anchor=NW,padx=2)
+        self.notesLabel = Label(self.notesFrame,text="")
+        self.notesLabel.pack()
 
     def getAvailableGrids(self):
         # remove current list
@@ -281,6 +292,14 @@ class App():
             self.algorithmThread = ALGORITHMS[self.algorithm.get()](threadQueue,self,self.grid,self.speed.get(),step)
 
     # event handlers
+    def __onAlgorithmChanged(self):
+        id = self.algorithm.get()
+        if ALGORITHMS[id].info is None:
+            self.notesFrame.pack_forget()
+        else:
+            self.notesFrame.pack(anchor=NW,padx=2)
+            self.notesLabel.configure(text=ALGORITHMS[id].info)
+
     def onRunPauseClicked(self):
         if self.state == STATE_IDLE or self.state == STATE_FINISHED:
             if self.state == STATE_FINISHED:
