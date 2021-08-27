@@ -18,7 +18,7 @@ STATE_FINISHED = 4
 
 threadQueue = Queue() # message queue
 
-ALGORITHMS = [DepthFirstSearchStack,BreadthFirstSearch]
+ALGORITHMS = [DepthFirstSearchStack,BreadthFirstSearch,Dijkstra,A_Star]
 SAVED_GRIDS_PATH = path.abspath(path.dirname(__file__)) + "/grids"
 
 class App():
@@ -108,7 +108,7 @@ class App():
         self.algFrame.pack(anchor=NW,padx=5)
         self.algorithm = IntVar()
         for algN in range(len(ALGORITHMS)):
-            ttk.Radiobutton(self.algFrame,text=ALGORITHMS[algN].__name__,variable=self.algorithm, value=algN,command=self.__onAlgorithmChanged,takefocus=False,style="NStyle.TRadiobutton").pack(fill=X,pady=[0,5])
+            ttk.Radiobutton(self.algFrame,text=ALGORITHMS[algN].name or ALGORITHMS[algN].__name__,variable=self.algorithm, value=algN,command=self.__onAlgorithmChanged,takefocus=False,style="NStyle.TRadiobutton").pack(fill=X,pady=[0,5])
         #self.algFrame.winfo_children()[0].invoke()
 
     def createControlsSection(self):
@@ -126,6 +126,9 @@ class App():
         self.speedScale.set(2)
         self.clearButton = ttk.Button(self.leftFrame,text="Clear",style="StopButton.TButton")
         self.clearButton.pack(anchor=NW,padx=[8,10],pady=[5,5],fill=X)
+        self.diagonalValue = BooleanVar()
+        self.diagonalSearchCheckbox = Checkbutton(self.leftFrame,text="Diagonal Search",variable=self.diagonalValue)
+        self.diagonalSearchCheckbox.pack(anchor=NW,padx=8,pady=[0,5])
         # set handlers
         self.runPauseButton.configure(command=self.onRunPauseClicked)
         self.stepButton.configure(command=self.onStepClicked)
@@ -259,16 +262,22 @@ class App():
             f = open(filepath,"w")
             f.write(json.dumps({"cellSize": CELL_SIZE, "dimensions": self.grid.dimensions, "grid": self.grid.getSaveDict()}))
             f.close()
-            print("Saved grid to: ", filename)
+            print("Saved grid to:", filename)
         except Exception: print("Failed to save grid..")
         #window.grab_release()
         window.destroy()
 
+    # enables/disables buttons that shouldn't be clickable in runtime
     def setButtonsState(self,val):
         for rb in self.algFrame.winfo_children():
             rb.configure(state = val)
-        self.menu.entryconfigure(1,state = "normal" if val == "enabled" else "disabled")
         self.clearButton.configure(state = val)
+        if val == "enabled":
+            self.menu.entryconfigure(1,state ="normal")
+            self.diagonalSearchCheckbox.configure(state = "normal")
+        else:
+            self.menu.entryconfigure(1,state = val)
+            self.diagonalSearchCheckbox.configure(state = val)
 
     # on grid click
     def onCellClick(self,cell,left=False):
@@ -289,7 +298,7 @@ class App():
     def initSearchAlgorithm(self,step=False):
         # threadQueue.get() -> to clear queue?
         if not self.algorithmThread: # create thread
-            self.algorithmThread = ALGORITHMS[self.algorithm.get()](threadQueue,self,self.grid,self.speed.get(),step)
+            self.algorithmThread = ALGORITHMS[self.algorithm.get()](threadQueue,self,self.grid,self.speed.get(),self.diagonalValue.get(),step)
 
     # event handlers
     def __onAlgorithmChanged(self):

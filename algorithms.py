@@ -11,21 +11,27 @@ STATE_RUNNING = 0
 STATE_PAUSED = 1
 STATE_STEP = 2
 
+MAX_DISTANCE = 999999
+
 # order in which getNeighbours(cell) returns 
-#NEIGHBOURS_ORDER = [(0,-1),(0,1),(-1,0),(1,0)] # NORTH, SOUTH, WEST, EAST
-NEIGHBOURS_ORDER = [(-1,0),(1,0),(0,-1),(0,1)] # WEST, EAST, NORTH, SOUTH
+# [(-1,0),(1,0),(0,-1),(0,1)] # WEST, EAST, NORTH, SOUTH
+NEIGHBOURS_ORDER = [(0,1),(1,0),(0,-1),(-1,0)] # N, E, S, W
+NEIGHBOURS_ORDER_DIAGONAL = [(0,1),(1,1),(1,0),(1,-1),(0,-1),(-1,-1),(-1,0),(-1,1)] # N, NE, E, SE, S, SW, W, NW
 
 # extend thread class
 class PathFindingAlgorithm(threading.Thread):
 
+    name = None # algorithm name, if None the class name is used
     info = None # information about the algorithm (string)
 
-    def __init__(self,queue: Queue, app, grid: Grid, speed, stepOnce: bool):
+    def __init__(self,queue: Queue, app, grid: Grid, speed, diagonal: bool, stepOnce: bool):
         threading.Thread.__init__(self,daemon=True)
-        self.queue = queue
+        self.__queue = queue
         self.app = app
         self.grid = grid
         self.__setSpeed(speed)
+        self.neighboursOrder = NEIGHBOURS_ORDER_DIAGONAL if diagonal else NEIGHBOURS_ORDER
+        grid.saveState()
         # search state
         self.origin = self.grid.start
         self.destination = self.grid.end
@@ -64,7 +70,7 @@ class PathFindingAlgorithm(threading.Thread):
                 self.state = STATE_PAUSED
             # sleep
             time.sleep(SLEEP_TIME)
-        print("EXIT")
+        #print("EXIT")
         return
 
     def isEmpty(self) -> bool:
@@ -86,7 +92,7 @@ class PathFindingAlgorithm(threading.Thread):
     # process queue message
     def __processQueue(self) -> bool:
         try:
-            message = self.queue.get(block=False)
+            message = self.__queue.get(block=False)
             #print("Message: ", message)
             if message is None: # stop
                 return False
@@ -127,7 +133,7 @@ class PathFindingAlgorithm(threading.Thread):
     def getNeighbours(self,cell: Cell):
         neighbours = list()
         x,y = cell.x, cell.y
-        for dir in NEIGHBOURS_ORDER:
+        for dir in self.neighboursOrder:
             node = self.grid.get(x+dir[0],y+dir[1])
             if node:
                 if node.state != BLOCKED:
@@ -141,8 +147,8 @@ class DepthFirstSearchStack(PathFindingAlgorithm):
     more steps have to be performed to respect node discovery order.
     This results in 'ghost' steps, where the popped node has already been visited.'''
 
-    def __init__(self, queue: Queue, app, grid: Grid, speed, stepOnce: bool):
-        super().__init__(queue, app, grid, speed, stepOnce)
+    def __init__(self, queue: Queue, app, grid: Grid, speed, diagonal: bool, stepOnce: bool):
+        super().__init__(queue, app, grid, speed, diagonal, stepOnce)
         self.stack = [self.origin]
 
     def isEmpty(self) -> bool:
@@ -200,8 +206,8 @@ class DepthFirstSearchStack(PathFindingAlgorithm):
 # STACK DFS ALT - less efficient version (more 'ghost' steps)
 class DepthFirstSearchStackAlt(PathFindingAlgorithm):
 
-    def __init__(self, queue: Queue, app, grid: Grid, speed, stepOnce: bool):
-        super().__init__(queue, app, grid, speed, stepOnce)
+    def __init__(self, queue: Queue, app, grid: Grid, speed, diagonal: bool, stepOnce: bool):
+        super().__init__(queue, app, grid, speed, diagonal, stepOnce)
         self.stack = [self.origin]
 
     def isEmpty(self) -> bool:
@@ -230,18 +236,18 @@ class DepthFirstSearchStackAlt(PathFindingAlgorithm):
 
 class BreadthFirstSearch(PathFindingAlgorithm):
 
-    def __init__(self, queue: Queue, app, grid: Grid, speed, stepOnce: bool):
-        super().__init__(queue, app, grid, speed, stepOnce)
-        self.searchQueue = Queue()
-        self.searchQueue.put(self.origin)
+    def __init__(self, queue: Queue, app, grid: Grid, speed, diagonal: bool, stepOnce: bool):
+        super().__init__(queue, app, grid, speed, diagonal, stepOnce)
+        self.queue = Queue()
+        self.queue.put(self.origin)
 
     def isEmpty(self) -> bool:
-        return self.searchQueue.qsize() == 0
+        return self.queue.qsize() == 0
 
     def step(self) -> bool:
         self.visited += 1
         super().step()
-        node = self.searchQueue.get()
+        node = self.queue.get()
         node.visited()
         if node == self.destination:
             return True
@@ -250,7 +256,94 @@ class BreadthFirstSearch(PathFindingAlgorithm):
         # add to queue and path
         for n in neighbours:
             if n.state != DISCOVERED and n.state != VISITED:
-                self.searchQueue.put(n)
+                self.queue.put(n)
                 n.discovered()
                 self.path[n] = node
+        return False
+
+# Implemented using a List with nodes (not ideal, but is good enough for this exercise).
+# It adds neighbour nodes to the the List at each iteration (like A*) rather than
+# adding all the nodes at initialization. This was mainly done to prevent the
+# search to reach disconnected nodes.
+class Dijkstra(PathFindingAlgorithm):
+
+    def __init__(self, queue: Queue, app, grid: Grid, speed, diagonal: bool, stepOnce: bool):
+        super().__init__(queue, app, grid, speed, diagonal, stepOnce)
+        self.list = list()
+        self.distances = dict()
+        #self.path = dict()
+        for x in self.grid.state.values():
+            for n in x.values():
+                if n.state != BLOCKED:
+                    self.distances[n] = MAX_DISTANCE
+        self.list.append(self.origin)
+        self.distances[self.origin] = 0
+
+    def isEmpty(self) -> bool:
+        return not self.list
+
+    def step(self) -> bool:
+        self.visited += 1
+        super().step()
+        self.list.sort(key = lambda x: self.distances[x]) # sort list by distance
+        node = self.list.pop(0)
+        node.visited()
+        if node == self.destination:
+            return True
+        for n in self.getNeighbours(node):
+            distance = self.distances[node] + 1
+            if (distance < self.distances[n]):
+                self.distances[n] = distance
+                self.path[n] = node
+                if n not in self.list:
+                    n.discovered()
+                    self.list.append(n)
+        return False
+
+class A_Star(PathFindingAlgorithm):
+
+    name = "A* Alt"
+    info = """The heuristic is the manhattan distance from the current node
+    to the target (B)."""
+
+    def __init__(self, queue: Queue, app, grid: Grid, speed, diagonal: bool, stepOnce: bool):
+        super().__init__(queue, app, grid, speed, diagonal, stepOnce)
+        self.list = list()
+        self.distances = dict()
+        self.heuristicCost = dict()
+        for x in self.grid.state.values():
+            for n in x.values():
+                if n.state != BLOCKED:
+                    self.distances[n] = MAX_DISTANCE
+                    self.heuristicCost[n] = MAX_DISTANCE
+                    #self.list.append(n)
+        self.list.append(self.origin)
+        self.distances[self.origin] = 0
+        self.heuristicCost[self.origin] = 0 #self.heuristic(self.origin)
+
+    def isEmpty(self) -> bool:
+        return not self.list
+
+    # manhattan distance from a node to the target
+    def heuristic(self,node):
+        return abs(node.x-self.destination.x) + abs(node.y-self.destination.y)
+
+    def step(self) -> bool:
+        self.visited += 1
+        super().step()
+        self.list.sort(key = lambda x: self.heuristicCost[x]) # sort list by distance+heuristic
+        node = self.list.pop(0)
+        node.visited()
+        if node == self.destination:
+            return True
+        for n in self.getNeighbours(node):
+            distance = self.distances[node] + 1
+            if (distance < self.distances[n]):
+                self.distances[n] = distance
+                self.heuristicCost[n] = distance + self.heuristic(n)
+                self.path[n] = node
+                if n not in self.list:
+                    #if n.state != DISCOVERED and n.state != VISITED:
+                    n.discovered()
+                    self.list.append(n)
         return False

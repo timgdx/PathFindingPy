@@ -1,3 +1,4 @@
+from os import stat_result
 from tkinter import *
 
 EMPTY = 0
@@ -40,19 +41,19 @@ class Cell:
         self.update()
 
     def discovered(self):
-        self.rawState = self.state
         self.state = DISCOVERED
         self.update()
 
     def visited(self):
-        if self.state != DISCOVERED: # prevent DISCOVERED from being save as its initial state
-            self.rawState = self.state
         self.state = VISITED
         self.update()
 
     def path(self):
         self.state = PATH
         self.update()
+
+    def saveState(self):
+        self.rawState = self.state
 
     # cleans algorithm search data
     def clean(self):
@@ -166,6 +167,13 @@ class Grid:
         self.end.update()
         self.start.label.configure(text="A")
         self.end.label.configure(text="B")
+
+    # used before running an algorithm
+    # saves cells' state
+    def saveState(self):
+        for v in self.state.values():
+            for vv in v.values():
+                vv.saveState() 
 
     # grid start/end integrity check
     def integrityCheck(self):
