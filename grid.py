@@ -1,4 +1,3 @@
-from os import stat_result
 from tkinter import *
 
 EMPTY = 0
