@@ -302,7 +302,7 @@ class Dijkstra(PathFindingAlgorithm):
 
 class A_Star(PathFindingAlgorithm):
 
-    name = "A* Alt"
+    name = "A*"
     info = """The heuristic is the manhattan distance from the current node
     to the target (B)."""
 

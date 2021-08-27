@@ -209,6 +209,7 @@ class App():
         columnsField.insert(0,str(self.grid.dimensions[1]))
         resizeButton = ttk.Button(window,text="Resize",style="NStyle.TButton",command=lambda : self.onGridResize(window,rowsField,columnsField), width=15)
         resizeButton.pack(anchor=NW,pady=[10,5])
+        self.__centerWindow(window)
 
     def __validateGridSize(self,action,index,value):
         if value:
@@ -253,6 +254,7 @@ class App():
         field.pack()
         saveButton = ttk.Button(window,text="Save",style="NStyle.TButton",command=lambda : self.saveGrid(window,field))
         saveButton.pack(pady=[10,0])
+        self.__centerWindow(window)
 
     def saveGrid(self,window,field):
         try:
@@ -266,6 +268,10 @@ class App():
         except Exception: print("Failed to save grid..")
         #window.grab_release()
         window.destroy()
+
+    def __centerWindow(self,window):
+        x, y = self.window.winfo_x() + self.window.winfo_reqwidth()*0.5 - window.winfo_reqwidth()*0.5, self.window.winfo_y() + self.window.winfo_reqheight()*0.5 - window.winfo_reqheight()*0.5
+        window.geometry("+%d+%d" % (x,y))
 
     # enables/disables buttons that shouldn't be clickable in runtime
     def setButtonsState(self,val):
