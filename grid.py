@@ -8,9 +8,17 @@ DISCOVERED = 4
 VISITED = 5
 PATH = 6
 
+COLOR_EMPTY = "#cccccc"
+COLOR_BLOCKED = "#666666"
+COLOR_START = "#778beb"
+COLOR_END = "#cf6a87"
+COLOR_DISCOVERED = "#f7d794"
+COLOR_VISITED = "#f3a683"
+COLOR_PATH = "#e15f41"
+
 class Cell:
     def __init__(self,id,parent,x,y,dummyImage,state = EMPTY,cellSize = 50):
-        self.label = Label(parent,text=id,image=dummyImage,width=cellSize,height=cellSize,compound=CENTER,background="#cccccc",relief=FLAT)
+        self.label = Label(parent,text=id,image=dummyImage,width=cellSize,height=cellSize,compound=CENTER,background=COLOR_EMPTY,relief=FLAT)
         self.label.grid(row=x,column=y,padx=1,pady=1)
         self.state = state
         self.rawState = 0
@@ -73,19 +81,19 @@ class Cell:
     # updates the label graphic for the cell's state
     def update(self):
         if (self.state == EMPTY): # none
-            self.label.configure(relief=FLAT,background="#cccccc")
+            self.label.configure(relief=FLAT,background=COLOR_EMPTY)
         elif (self.state == START): # start
-            self.label.configure(relief=RAISED,background="#778beb")
+            self.label.configure(relief=RAISED,background=COLOR_START)
         elif (self.state == END): # end
-            self.label.configure(relief=RAISED,background="#cf6a87")
+            self.label.configure(relief=RAISED,background=COLOR_END)
         elif (self.state == BLOCKED): # blocked
-            self.label.configure(relief=FLAT,background="#666666")
+            self.label.configure(relief=FLAT,background=COLOR_BLOCKED)
         elif (self.state == DISCOVERED): # discovered
-            self.label.configure(relief=FLAT if (self.rawState != START and self.rawState != END) else RAISED,background="#f7d794")
+            self.label.configure(relief=FLAT if (self.rawState != START and self.rawState != END) else RAISED,background=COLOR_DISCOVERED)
         elif (self.state == VISITED): # visited
-            self.label.configure(relief=FLAT if (self.rawState != START and self.rawState != END) else RAISED,background="#f3a683")
+            self.label.configure(relief=FLAT if (self.rawState != START and self.rawState != END) else RAISED,background=COLOR_VISITED)
         elif (self.state == PATH): # path
-            self.label.configure(relief=FLAT if (self.rawState != START and self.rawState != END) else RAISED,background="#e15f41")
+            self.label.configure(relief=FLAT if (self.rawState != START and self.rawState != END) else RAISED,background=COLOR_PATH)
 
     def getSaveState(self):
         if self.state == EMPTY or self.state == START or self.state == END or self.state == BLOCKED:
@@ -166,6 +174,11 @@ class Grid:
         self.end.update()
         self.start.label.configure(text="A")
         self.end.label.configure(text="B")
+
+    def resizeCells(self,size):
+        for v in self.state.values():
+            for vv in v.values():
+                vv.label.configure(width=size,height=size)
 
     # used before running an algorithm
     # saves cells' state

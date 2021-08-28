@@ -9,6 +9,7 @@ import json
 
 CELL_SIZE = 30
 GRID_SIZE = (9,9)
+DEFAULT_GRID = "hidden" # saved grid filename (no extension); None for default
 
 STATE_IDLE = 0
 STATE_RUNNING = 1
@@ -50,13 +51,22 @@ class App():
         # execution state
         self.state = STATE_IDLE # 0 - idle, 1 - running, 2 - paused, 3 - step, 4 - finished
         self.startEndFlip = False # used to determine whether placing a Start or End node (flips on click)
+
+        # controls
         self.createControlsSection()
 
         # grid frame
         self.createGridSection()
 
         # create the grid
-        self.grid = Grid(self.gridFrame,self.dummyImage,self.onCellClick,cellSize=CELL_SIZE,size=GRID_SIZE)
+        self.loadGridByName(DEFAULT_GRID)
+        #self.grid = Grid(self.gridFrame,self.dummyImage,self.onCellClick,cellSize=CELL_SIZE,size=GRID_SIZE)
+
+        # legend
+        self.createLegendSection()
+
+        # help
+        self.createHelpSection()
 
         # stats display
         self.createStatsSection()
@@ -108,7 +118,7 @@ class App():
         self.algFrame.pack(anchor=NW,padx=5)
         self.algorithm = IntVar()
         for algN in range(len(ALGORITHMS)):
-            ttk.Radiobutton(self.algFrame,text=ALGORITHMS[algN].name or ALGORITHMS[algN].__name__,variable=self.algorithm, value=algN,command=self.__onAlgorithmChanged,takefocus=False,style="NStyle.TRadiobutton").pack(fill=X,pady=[0,5])
+            ttk.Radiobutton(self.algFrame,text=ALGORITHMS[algN].name or ALGORITHMS[algN].__name__,variable=self.algorithm, value=algN,command=self.onAlgorithmChanged,takefocus=False,style="NStyle.TRadiobutton").pack(fill=X,pady=[0,5])
         #self.algFrame.winfo_children()[0].invoke()
 
     def createControlsSection(self):
@@ -140,6 +150,17 @@ class App():
         self.gridFrame = Frame(self.rightFrame,padx=1,pady=1,background="#666666")
         self.gridFrame.pack(anchor=N,padx=5, pady=5)
 
+    def createLegendSection(self):
+        self.legendFrame = LabelFrame(self.rightFrame,text="Legend")
+        self.legendFrame.pack(anchor=NW,padx=2)
+        legend = [("Empty",COLOR_EMPTY),("Blocked",COLOR_BLOCKED),("Start",COLOR_START),("End",COLOR_END),("Discovered",COLOR_DISCOVERED),("Visited",COLOR_VISITED),("Path",COLOR_PATH)]
+        for n in legend:
+            frame = Frame(self.legendFrame)
+            frame.pack(side=LEFT)
+            colorRec = Label(frame,image=self.dummyImage,background=n[1],compound=CENTER,width=10,height=10,relief=GROOVE)
+            colorRec.pack(side=LEFT,padx=2)
+            Label(frame,text=n[0]).pack(side=LEFT,padx=[0,5])
+
     def createStatsSection(self):
         self.stateLabel = Label(self.rightFrame,text="State: Idle")
         self.stateLabel.pack(anchor=NW,padx=2)
@@ -156,14 +177,19 @@ class App():
         self.notesLabel = Label(self.notesFrame,text="")
         self.notesLabel.pack()
 
+    def createHelpSection(self):
+        self.helpFrame = LabelFrame(self.rightFrame,text="Controls")
+        self.helpFrame.pack(anchor=NW,padx=2)
+        controls = ["[Left-Click]: Block/Unblock", "[Right-Click]: Start/End"]
+        for n in controls:
+            Label(self.helpFrame,text=n).pack(side=LEFT,padx=5)
+
     def getAvailableGrids(self):
         # remove current list
         for n in self.loadMenu.winfo_children():
             n.destroy()
         # add default grid
-        self.loadMenu.add_radiobutton(label="Default")
-        self.loadMenu.invoke(0)
-        self.loadMenu.entryconfigure(0,command=self.onSavedGridSelected)
+        self.loadMenu.add_radiobutton(label="Default",command=self.onSavedGridSelected)
         # create dir if necessary
         if not path.isdir(SAVED_GRIDS_PATH):
             print("Creating grids directory..")
@@ -189,6 +215,18 @@ class App():
             self.grid = Grid(self.gridFrame,self.dummyImage,self.onCellClick,grid=grid["grid"],cellSize=grid["cellSize"],size=grid["dimensions"])
         else:
             self.grid = Grid(self.gridFrame,self.dummyImage,self.onCellClick,None,CELL_SIZE,GRID_SIZE)
+        if self.state != STATE_IDLE:
+            self.state = STATE_IDLE
+            self.__resetStats()
+
+    def loadGridByName(self, name):
+        if name:
+            for n in range(self.loadMenu.index(END)+1):
+                if self.loadMenu.entrycget(n,"label") == name:
+                    self.loadMenu.invoke(n)
+                    return
+            print("Failed to load grid:",name)
+        self.loadMenu.invoke(0)
 
     def resizeGrid(self):
         window = Toplevel(self.window,padx=20,pady=10)
@@ -200,15 +238,24 @@ class App():
         rowsField = Entry(topFrame, font="TkDefaultFont 16",width=3, validate='key', validatecommand=validate)
         rowsField.insert(0,str(self.grid.dimensions[0]))
         rowsField.grid(row=0,column=0,sticky=N+W+E)
-        label = Label(topFrame,text="X",justify="center",width=1).grid(row=0,column=1,sticky=N+W+E)
+        Label(topFrame,text="X",justify="center",width=1).grid(row=0,column=1,sticky=N+W+E)
         topFrame.grid_columnconfigure(0,weight=1)
         topFrame.grid_columnconfigure(1,weight=1)
         topFrame.grid_columnconfigure(2,weight=1)
         columnsField = Entry(topFrame, font="TkDefaultFont 16",width=3, validate='key', validatecommand=validate)
         columnsField.grid(row=0,column=2,sticky=N+W+E)
         columnsField.insert(0,str(self.grid.dimensions[1]))
-        resizeButton = ttk.Button(window,text="Resize",style="NStyle.TButton",command=lambda : self.onGridResize(window,rowsField,columnsField), width=15)
-        resizeButton.pack(anchor=NW,pady=[10,5])
+        # cell size
+        validate = (window.register(self.__validateCellSize),'%d', '%i', '%P')
+        frame = Frame(window)
+        frame.pack(pady=5,fill=X)
+        Label(frame,text="Cell size:").pack(side=LEFT)
+        cellSizeField = Entry(frame,font="TkDefaultFont 16",width=3, validate='key', validatecommand=validate)
+        cellSizeField.insert(0,str(CELL_SIZE))
+        cellSizeField.pack(side=LEFT)
+        # button
+        resizeButton = ttk.Button(window,text="Resize",style="NStyle.TButton",command=lambda : self.onGridResize(window,rowsField,columnsField,cellSizeField), width=15)
+        resizeButton.pack(anchor=NW,pady=[5,5])
         self.__centerWindow(window)
 
     def __validateGridSize(self,action,index,value):
@@ -221,15 +268,35 @@ class App():
                 return False
         return value == ''
 
-    def onGridResize(self,window,rowsField,columnsField):
+    def __validateCellSize(self,action,index,value):
+        if value:
+            try:
+                x = int(value)
+                if x == 0: return False
+                return True
+            except:
+                return False
+        return value == ''
+
+    def onGridResize(self,window,rowsField,columnsField,cellSizeField):
+        global CELL_SIZE
         try:
-            x = min(int(rowsField.get()),16)
-            y = min(int(columnsField.get()),16)
-            # destroy current grid
-            for n in self.gridFrame.winfo_children():
-                n.destroy()
-            # create default with new size
-            self.grid = Grid(self.gridFrame,self.dummyImage,self.onCellClick,None,CELL_SIZE,(x,y))
+            x = max(2,min(int(rowsField.get()),16))
+            y = max(2,min(int(columnsField.get()),16))
+            cellSize = max(15,min(int(cellSizeField.get()),40))
+            if (x != self.grid.dimensions[0] or y != self.grid.dimensions[1]):
+                # destroy current grid
+                for n in self.gridFrame.winfo_children():
+                    n.destroy()
+                # create default with new size
+                self.grid = Grid(self.gridFrame,self.dummyImage,self.onCellClick,None,cellSize,(x,y))
+                # reset state
+                self.state = STATE_IDLE
+                self.__resetStats()
+            else:
+                if cellSize != CELL_SIZE:
+                    self.grid.resizeCells(cellSize)
+            CELL_SIZE = cellSize
         except: pass
         window.destroy()
         
@@ -269,10 +336,6 @@ class App():
         #window.grab_release()
         window.destroy()
 
-    def __centerWindow(self,window):
-        x, y = self.window.winfo_x() + self.window.winfo_reqwidth()*0.5 - window.winfo_reqwidth()*0.5, self.window.winfo_y() + self.window.winfo_reqheight()*0.5 - window.winfo_reqheight()*0.5
-        window.geometry("+%d+%d" % (x,y))
-
     # enables/disables buttons that shouldn't be clickable in runtime
     def setButtonsState(self,val):
         for rb in self.algFrame.winfo_children():
@@ -285,9 +348,16 @@ class App():
             self.menu.entryconfigure(1,state = val)
             self.diagonalSearchCheckbox.configure(state = val)
 
+        # creates a thread for the chosen algorithm
+    
+    def initSearchAlgorithm(self,step=False):
+        # threadQueue.get() -> to clear queue?
+        if not self.algorithmThread: # create thread
+            self.algorithmThread = ALGORITHMS[self.algorithm.get()](threadQueue,self,self.grid,self.speed.get(),self.diagonalValue.get(),step)
+
     # on grid click
     def onCellClick(self,cell,left=False):
-        if self.state != 0:
+        if self.state != STATE_IDLE:
             return
         if left: # block/unblock
             cell.block() # calls update
@@ -300,14 +370,8 @@ class App():
         # check start/end integrity
         self.grid.integrityCheck()
 
-    # creates a thread for the chosen algorithm
-    def initSearchAlgorithm(self,step=False):
-        # threadQueue.get() -> to clear queue?
-        if not self.algorithmThread: # create thread
-            self.algorithmThread = ALGORITHMS[self.algorithm.get()](threadQueue,self,self.grid,self.speed.get(),self.diagonalValue.get(),step)
-
     # event handlers
-    def __onAlgorithmChanged(self):
+    def onAlgorithmChanged(self):
         id = self.algorithm.get()
         if ALGORITHMS[id].info is None:
             self.notesFrame.pack_forget()
@@ -319,6 +383,7 @@ class App():
         if self.state == STATE_IDLE or self.state == STATE_FINISHED:
             if self.state == STATE_FINISHED:
                 self.grid.clean()
+                self.__resetStats()
             # create the algorithm thread
             self.initSearchAlgorithm()
             # change state
@@ -347,6 +412,7 @@ class App():
         if self.state != STATE_STEP:
             if self.state == STATE_FINISHED:
                 self.grid.clean()
+                self.__resetStats()
             self.state = STATE_STEP
             self.runPauseButton.configure(text="Run")
             self.setButtonsState(DISABLED)
@@ -368,11 +434,7 @@ class App():
         self.state = STATE_IDLE
         self.runPauseButton.configure(text="Run")
         self.setButtonsState("enabled")
-        self.stateLabel.configure(text="State: Idle")
-        self.iterationsLabel.configure(text="Iterations: 0")
-        self.visitedLabel.configure(text="Visited: 0")
-        self.distanceLabel.configure(text="Distance: 0")
-        self.pathLabel.configure(text="Path: ")
+        self.__resetStats()
         self.grid.clean()
 
     def onSpeedChanged(self,val):
@@ -399,6 +461,18 @@ class App():
         self.pathLabel.configure(text="Path: " + str(path))
         self.algorithmThread = None
         self.setButtonsState("enabled")
+
+    # private methods
+    def __resetStats(self):
+        self.stateLabel.configure(text="State: Idle")
+        self.iterationsLabel.configure(text="Iterations:")
+        self.visitedLabel.configure(text="Visited:")
+        self.distanceLabel.configure(text="Distance:")
+        self.pathLabel.configure(text="Path:")
+
+    def __centerWindow(self,window):
+        x, y = self.window.winfo_x() + self.window.winfo_reqwidth()*0.5 - window.winfo_reqwidth()*0.5, self.window.winfo_y() + self.window.winfo_reqheight()*0.5 - window.winfo_reqheight()*0.5
+        window.geometry("+%d+%d" % (x,y))
 
 # create app
 app = App()

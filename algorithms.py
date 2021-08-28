@@ -267,6 +267,9 @@ class BreadthFirstSearch(PathFindingAlgorithm):
 # search to reach disconnected nodes.
 class Dijkstra(PathFindingAlgorithm):
 
+    info = """Note that BFS is equivalent to Dijkstra in this demonstration.
+    This is because the distance from a node to its neighbours is uniform."""
+
     def __init__(self, queue: Queue, app, grid: Grid, speed, diagonal: bool, stepOnce: bool):
         super().__init__(queue, app, grid, speed, diagonal, stepOnce)
         self.list = list()
